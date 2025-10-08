@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple BMI Calculator</title>
+  <style>
+    :root{--bg:#f7f8fb;--card:#fff;--accent:#4f46e5;--muted:#6b7280}
+    *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#eef2ff);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:var(--card);width:100%;max-width:860px;border-radius:14px;box-shadow:0 10px 30px rgba(16,24,40,0.08);padding:22px}
+    h1{margin:0 0 8px;font-size:20px}
+    p.lead{margin:0 0 18px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 320px;gap:18px}
+    @media(max-width:820px){.grid{grid-template-columns:1fr}}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .row{margin-bottom:12px}
+    input[type="number"],select{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9f2;font-size:15px}
+    .controls{display:flex;gap:8px}
+    .btn{background:var(--accent);color:#fff;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+    .btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,0.12)}
+    .result{background:linear-gradient(90deg,#fff,#fbfdff);padding:14px;border-radius:10px;border:1px solid #eef2ff}
+    .bignum{font-size:28px;font-weight:700;margin:6px 0}
+    .muted{color:var(--muted);font-size:13px}
+    ul.history{list-style:none;padding:0;margin:0}
+    ul.history li{padding:8px;border-radius:8px;background:#fafafa;margin-bottom:8px;font-size:13px}
+    .categories{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .chip{padding:6px 8px;border-radius:999px;background:#f3f4f6;font-size:13px}
+    footer.note{margin-top:12px;font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>BMI Calculator — Free &amp; Simple</h1>
+    <p class="lead">Enter your height and weight (metric or imperial). The calculator shows BMI, category, and a simple ideal-weight range. History is saved locally in your browser.</p>
+
+    <section class="grid" aria-labelledby="calc">
+      <form id="form" onsubmit="return false;">
+        <div class="row">
+          <label for="units">Units</label>
+          <select id="units" aria-label="Units">
+            <option value="metric">Metric (kg, cm)</option>
+            <option value="imperial">Imperial (lb, in)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="weight">Weight</label>
+          <input id="weight" type="number" inputmode="decimal" min="0" step="0.1" placeholder="e.g. 70" aria-describedby="weightHelp" />
+          <div id="weightHelp" class="muted">Enter weight in kg or lb depending on selected units</div>
+        </div>
+
+        <div class="row">
+          <label for="height">Height</label>
+          <input id="height" type="number" inputmode="decimal" min="0" step="0.1" placeholder="e.g. 170" aria-describedby="heightHelp" />
+          <div id="heightHelp" class="muted">Enter height in cm or inches depending on selected units</div>
+        </div>
+
+        <div class="row controls">
+          <button class="btn" id="calcBtn">Calculate BMI</button>
+          <button class="btn secondary" id="saveBtn" type="button">Save to history</button>
+          <button class="btn secondary" id="clearBtn" type="button">Clear</button>
+        </div>
+
+        <div class="row">
+          <label for="age">Age (optional)</label>
+          <input id="age" type="number" min="1" max="120" placeholder="e.g. 30" />
+        </div>
+
+      </form>
+
+      <aside aria-label="Results & history">
+        <div class="result" id="resultBox">
+          <div class="muted">Your BMI</div>
+          <div class="bignum" id="bmiValue">—</div>
+          <div id="bmiCategory" class="muted">Provide values and click Calculate</div>
+
+          <div style="margin-top:12px">
+            <div class="muted">Healthy BMI range</div>
+            <div id="idealRange" class="muted">—</div>
+          </div>
+
+          <div class="categories" aria-hidden="false" style="margin-top:12px">
+            <span class="chip">Underweight &lt; 18.5</span>
+            <span class="chip">Normal 18.5–24.9</span>
+            <span class="chip">Overweight 25–29.9</span>
+            <span class="chip">Obesity ≥ 30</span>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="muted" style="margin-bottom:8px">History (stored locally)</div>
+          <ul class="history" id="historyList" aria-live="polite"></ul>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn secondary" id="downloadBtn" type="button">Download CSV</button>
+            <button class="btn" id="clearHistoryBtn" type="button">Clear History</button>
+          </div>
+          <footer class="note">This runs fully in your browser. No data leaves your device.</footer>
+        </div>
+      </aside>
+    </section>
+
+  </main>
+
+  <script>
+    // Utility functions
+    const el = id => document.getElementById(id);
+    const units = el('units');
+    const weight = el('weight');
+    const height = el('height');
+    const calcBtn = el('calcBtn');
+    const bmiValue = el('bmiValue');
+    const bmiCategory = el('bmiCategory');
+    const idealRange = el('idealRange');
+    const saveBtn = el('saveBtn');
+    const historyList = el('historyList');
+    const downloadBtn = el('downloadBtn');
+    const clearHistoryBtn = el('clearHistoryBtn');
+    const clearBtn = el('clearBtn');
+
+    function toMetric(w, h, unit){
+      // returns {kg, m}
+      if(unit === 'metric'){
+        return {kg: parseFloat(w), m: parseFloat(h)/100};
+      }
+      // imperial: lb and inches -> kg and m
+      const kg = parseFloat(w) * 0.45359237;
+      const m = parseFloat(h) * 0.0254;
+      return {kg, m};
+    }
+
+    function calcBMI(){
+      const w = parseFloat(weight.value);
+      const h = parseFloat(height.value);
+      const unit = units.value;
+      if(!w || !h || w<=0 || h<=0) return null;
+      const {kg, m} = toMetric(w,h,unit);
+      const bmi = kg / (m*m);
+      return +bmi.toFixed(1);
+    }
+
+    function categoryFor(bmi){
+      if(bmi < 18.5) return 'Underweight';
+      if(bmi < 25) return 'Normal weight';
+      if(bmi < 30) return 'Overweight';
+      return 'Obesity';
+    }
+
+    function idealWeightRangeForHeight(m){
+      // normal BMI range 18.5 - 24.9
+      const lowKg = 18.5 * (m*m);
+      const highKg = 24.9 * (m*m);
+      return {low: +lowKg.toFixed(1), high: +highKg.toFixed(1)};
+    }
+
+    function renderResult(){
+      const bmi = calcBMI();
+      if(bmi === null){
+        bmiValue.textContent = '—';
+        bmiCategory.textContent = 'Provide values and click Calculate';
+        idealRange.textContent = '—';
+        return;
+      }
+      bmiValue.textContent = bmi;
+      bmiCategory.textContent = categoryFor(bmi);
+
+      const {kg, m} = toMetric(weight.value, height.value, units.value);
+      const range = idealWeightRangeForHeight(m);
+      if(units.value === 'metric'){
+        idealRange.textContent = `${range.low} kg — ${range.high} kg`;
+      } else {
+        // convert kg to lb
+        const lowLb = +(range.low / 0.45359237).toFixed(1);
+        const highLb = +(range.high / 0.45359237).toFixed(1);
+        idealRange.textContent = `${lowLb} lb — ${highLb} lb`;
+      }
+    }
+
+    function loadHistory(){
+      const raw = localStorage.getItem('bmi_history_v1');
+      if(!raw) return [];
+      try{ return JSON.parse(raw) }catch(e){ return [] }
+    }
+
+    function saveHistory(arr){
+      localStorage.setItem('bmi_history_v1', JSON.stringify(arr));
+    }
+
+    function addHistoryEntry(entry){
+      const arr = loadHistory();
+      arr.unshift(entry);
+      if(arr.length>30) arr.pop();
+      saveHistory(arr);
+      renderHistory();
+    }
+
+    function renderHistory(){
+      const arr = loadHistory();
+      historyList.innerHTML = '';
+      if(arr.length===0){ historyList.innerHTML = '<li class="muted">No entries yet</li>'; return }
+      arr.forEach(e => {
+        const li = document.createElement('li');
+        li.textContent = `${e.timestamp} — BMI ${e.bmi} (${e.category}) — ${e.weight} ${e.unitsWeight}, ${e.height} ${e.unitsHeight}`;
+        historyList.appendChild(li);
+      })
+    }
+
+    calcBtn.addEventListener('click', ()=>{
+      renderResult();
+    });
+
+    saveBtn.addEventListener('click', ()=>{
+      const bmi = calcBMI();
+      if(bmi===null){ alert('Please enter valid weight and height first.'); return }
+      const now = new Date();
+      const entry = {
+        timestamp: now.toLocaleString(),
+        bmi: bmi,
+        category: categoryFor(bmi),
+        weight: +parseFloat(weight.value).toFixed(1),
+        height: +parseFloat(height.value).toFixed(1),
+        unitsWeight: units.value === 'metric' ? 'kg' : 'lb',
+        unitsHeight: units.value === 'metric' ? 'cm' : 'in'
+      };
+      addHistoryEntry(entry);
+      alert('Saved to local history');
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      weight.value = '';
+      height.value = '';
+      age.value = '';
+      renderResult();
+    });
+
+    clearHistoryBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear local history?')) return;
+      localStorage.removeItem('bmi_history_v1');
+      renderHistory();
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      const arr = loadHistory();
+      if(arr.length===0){ alert('No history to download'); return }
+      const csv = ['timestamp,bmi,category,weight,height,unitsWeight,unitsHeight'].concat(
+        arr.map(r => `${r.timestamp.replace(/,/g,'')} , ${r.bmi}, ${r.category}, ${r.weight}, ${r.height}, ${r.unitsWeight}, ${r.unitsHeight}`)
+      ).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'bmi_history.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // render initial state
+    renderHistory();
+    renderResult();
+
+    // keyboard accessibility: Enter on inputs -> calculate
+    [weight, height].forEach(i=>i.addEventListener('keydown', e=>{ if(e.key==='Enter') renderResult(); }))
+  </script>
+</body>
+</html>
